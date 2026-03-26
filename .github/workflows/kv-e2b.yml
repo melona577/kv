@@ -15,6 +15,8 @@ env:
   ROPE_FREQ_BASE: 500000
   MODEL_ID: gemma-3n-e2b-reasoning
   N_CTX: 8192
+  # Node.js 20 경고를 제거하기 위해 추가
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   generate-kv-e2b:
@@ -202,9 +204,10 @@ jobs:
         id: chapters
         run: |
           STORY_ID="${{ github.event.inputs.story_id }}"
-          RESPONSE=$(curl -sf "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-prompt")
+          # [수정] ?secret 파라미터 추가
+          RESPONSE=$(curl -sf "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-prompt?secret=${{ secrets.ADMIN_KV_SECRET }}")
           if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
-            echo "❌ 스토리 없음: $STORY_ID"; exit 1
+            echo "❌스토리 없음 또는 인증 실패: $STORY_ID"; exit 1
           fi
           CHAPTERS=$(echo "$RESPONSE" | jq -r '[.chapters[].chapterId] | @json')
           TOTAL=$(echo "$RESPONSE" | jq '.chapters | length')
@@ -217,7 +220,8 @@ jobs:
         id: cores
         run: |
           STORY_ID="${{ github.event.inputs.story_id }}"
-          RESPONSE=$(curl -sf "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-cores")
+          # [수정] ?secret 파라미터 추가
+          RESPONSE=$(curl -sf "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-cores?secret=${{ secrets.ADMIN_KV_SECRET }}")
           if [ $? -ne 0 ] || [ -z "$RESPONSE" ]; then
             echo "cores=[]" >> $GITHUB_OUTPUT
             echo "total_cores=0" >> $GITHUB_OUTPUT
@@ -247,16 +251,18 @@ jobs:
           PENDING_CHAPTERS=""
 
           for CH_ID in $(echo "$CHAPTERS" | jq -r '.[]'); do
+            # [수정] ?secret 파라미터 추가
             EXISTING=$(curl -sf \
-              "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv/$CH_ID?modelId=$MODEL_ID" \
+              "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv/$CH_ID?modelId=$MODEL_ID&secret=${{ secrets.ADMIN_KV_SECRET }}" \
               | jq -r '.exists // false')
             if [ "$EXISTING" = "true" ]; then
               echo "⏭  $CH_ID — 이미 존재, 스킵"
               continue
             fi
 
+            # [수정] &secret 파라미터 추가
             PROMPT_JSON=$(curl -sf \
-              "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-prompt?chapterId=$CH_ID")
+              "${{ secrets.WORKER_URL }}/api/stories/$STORY_ID/kv-prompt?chapterId=$CH_ID&secret=${{ secrets.ADMIN_KV_SECRET }}")
             PROMPT=$(echo "$PROMPT_JSON" | jq -r '.prompt')
             TOKEN_EST=$(echo "$PROMPT_JSON" | jq -r '.tokenEstimate // 0')
             PROMPT_FILE="/tmp/prompt_${CH_ID}_e2b.txt"
