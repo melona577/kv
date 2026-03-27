@@ -493,6 +493,7 @@ jobs:
           from urllib.parse import urlencode
 
           story_id         = "${STORY_ID}"
+          model_id         = "${MODEL_ID}"
           out_bin          = "${BASE_BIN}"
           worker_url       = "${{ secrets.WORKER_URL }}".rstrip("/")
           admin_kv_secret  = "${{ secrets.ADMIN_KV_SECRET }}"
@@ -506,7 +507,7 @@ jobs:
               raw = f.read()
 
           sha256 = hashlib.sha256(raw).hexdigest()
-          r2_key = f"kv_cache/{story_id}/base.bin"
+          r2_key = f"kv_cache/{story_id}/base_{model_id}.bin"
 
           def sha256hex(data):
               if isinstance(data, str):
@@ -566,6 +567,8 @@ jobs:
               "sha256": sha256,
               "sizeBytes": len(raw),
               "ggufFilename": gguf_filename,
+              "modelId": model_id,
+              "llamaRnVersion": "${{ env.KV_VERSION }}",
           }).encode()
 
           register_req = urllib.request.Request(
